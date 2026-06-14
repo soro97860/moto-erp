@@ -3,7 +3,8 @@ import { Search, Trash2, Plus, Minus, Printer, CheckCircle2, Loader2, ScanLine, 
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import { useProducts } from '../hooks/useProducts';
-import { useCustomerByPlate, useCreateCustomer, type Customer } from '../hooks/useCustomers';
+import { useCustomerByPlate, useCreateCustomer } from '../hooks/useCustomers';
+import { useCheckoutStore } from '../stores/checkoutStore';
 import { useCreateOrder, useOrderReceipt } from '../hooks/useOrders';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -26,12 +27,12 @@ export function CheckoutPage() {
   const [searchActive, setSearchActive] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Customer
-  const [plateInput, setPlateInput] = useState('');
-  const [plateQuery, setPlateQuery] = useState('');
+  // Customer — plate state lives in Zustand so it survives navigation
+  const {
+    plateInput, plateQuery, manualCustomer,
+    setPlateInput, setPlateQuery, setManualCustomer, resetPlate,
+  } = useCheckoutStore();
   const [scannerOpen, setScannerOpen] = useState(false);
-  // Customer created inline (bypasses plate query timing)
-  const [manualCustomer, setManualCustomer] = useState<Customer | null>(null);
   // Quick-add form
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [qf, setQf] = useState({ name: '', phone: '', vehicleModel: '', vehicleColor: '' });
@@ -55,9 +56,10 @@ export function CheckoutPage() {
     searchActive && searchQuery.length >= 1 ? { keyword: searchQuery, pageSize: 8 } : {},
   );
 
-  const { data: customers, isError: plateNotFound } = useCustomerByPlate(plateQuery);
-  const customer = manualCustomer ?? customers?.[0];
-  const notFound = !noPlate && plateQuery.length >= 3 && plateNotFound && !manualCustomer;
+  const { data: customers } = useCustomerByPlate(plateQuery);
+  // Single match → auto-select; multiple → show list; manual (created/picked) → override
+  const customer = manualCustomer ?? (customers?.length === 1 ? customers[0] : undefined);
+  const notFound = !noPlate && plateQuery.length >= 2 && customers !== undefined && customers.length === 0 && !manualCustomer;
 
   const createCustomer = useCreateCustomer();
 
@@ -96,7 +98,7 @@ export function CheckoutPage() {
     setManualCustomer(null);
     setShowQuickAdd(false);
     setQf({ name: '', phone: '', vehicleModel: '', vehicleColor: '' });
-    setPlateQuery(plateInput.toUpperCase().replace(/\s/g, ''));
+    setPlateQuery(plateInput.trim().toUpperCase().replace(/\s/g, ''));
   };
 
   async function handleQuickAdd() {
@@ -158,9 +160,7 @@ export function CheckoutPage() {
       cart.clear();
       setDescription('');
       setNoPlate(false);
-      setManualCustomer(null);
-      setPlateQuery('');
-      setPlateInput('');
+      resetPlate();
       toast('結帳成功！', 'success');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -318,7 +318,7 @@ export function CheckoutPage() {
           <div className={cn('flex gap-2', noPlate && 'opacity-40 pointer-events-none')}>
             <Input
               value={plateInput}
-              onChange={(e) => { setPlateInput(e.target.value.toUpperCase()); setManualCustomer(null); }}
+              onChange={(e) => { setPlateInput(e.target.value.toUpperCase()); setManualCustomer(null); setShowQuickAdd(false); }}
               onKeyDown={(e) => e.key === 'Enter' && handlePlateSearch()}
               placeholder="輸入車牌號碼"
               className="font-mono text-sm uppercase"
@@ -341,12 +341,34 @@ export function CheckoutPage() {
             </div>
           ) : customer ? (
             <div className="rounded-lg bg-green-50 border border-green-200 p-3 space-y-1 text-sm">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <span className="font-semibold">{customer.name}</span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <span className="font-semibold">{customer.name}</span>
+                </div>
+                <span className="font-mono text-xs text-gray-400">{customer.licensePlate}</span>
               </div>
               <p className="text-gray-600">{customer.phone}</p>
               <p className="text-gray-500">{customer.vehicleModel ?? ''} {customer.vehicleColor ?? ''}</p>
+            </div>
+          ) : !noPlate && customers && customers.length > 1 && !manualCustomer ? (
+            <div className="space-y-1.5">
+              <p className="text-xs text-gray-500">找到 {customers.length} 筆符合「{plateQuery}」，請選擇：</p>
+              <div className="border rounded-lg overflow-hidden divide-y max-h-44 overflow-y-auto">
+                {customers.map((c) => (
+                  <button
+                    key={c.id}
+                    className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center justify-between gap-2 text-sm"
+                    onClick={() => setManualCustomer(c)}
+                  >
+                    <span className="font-medium truncate">{c.name}</span>
+                    <div className="text-right shrink-0">
+                      <p className="font-mono text-xs text-gray-600">{c.licensePlate}</p>
+                      <p className="text-xs text-gray-400">{c.phone}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           ) : notFound ? (
             <div className="space-y-2">
@@ -565,6 +587,7 @@ export function CheckoutPage() {
           onDetected={(plate) => {
             setPlateInput(plate);
             setPlateQuery(plate);
+            setManualCustomer(null);
             setScannerOpen(false);
           }}
           onClose={() => setScannerOpen(false)}

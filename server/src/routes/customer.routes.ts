@@ -38,7 +38,7 @@ customerRouter.get('/plate/:plateNumber', async (req, res) => {
   const plate = decodeURIComponent(req.params.plateNumber).toUpperCase();
 
   const customers = await prisma.customer.findMany({
-    where: { licensePlate: { equals: plate, mode: 'insensitive' }, isActive: true },
+    where: { licensePlate: { contains: plate, mode: 'insensitive' }, isActive: true },
     include: {
       serviceRecords: {
         orderBy: { serviceDate: 'desc' },
@@ -46,9 +46,10 @@ customerRouter.get('/plate/:plateNumber', async (req, res) => {
         include: { technician: { select: { id: true, name: true } } },
       },
     },
+    orderBy: { licensePlate: 'asc' },
+    take: 10,
   });
 
-  if (!customers.length) throw new AppError('找不到此車牌的車主', 404);
   res.json({ success: true, data: customers });
 });
 

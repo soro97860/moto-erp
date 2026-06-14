@@ -54,7 +54,7 @@ export function useCustomerByPlate(plate: string) {
       );
       return data.data as Customer[];
     },
-    enabled: plate.length >= 3,
+    enabled: plate.length >= 2,
     retry: false,
   });
 }
