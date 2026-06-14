@@ -14,19 +14,24 @@ export function SignaturePad({ onConfirm, onCancel }: Props) {
   const [isEmpty, setIsEmpty] = useState(true);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
-    ctx.strokeStyle = '#111827';
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    // Use rAF so the canvas is fully laid out before reading its dimensions
+    const raf = requestAnimationFrame(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = canvas.offsetWidth;
+      const cssH = canvas.offsetHeight;
+      canvas.width = cssW * dpr;
+      canvas.height = cssH * dpr;
+      ctx.scale(dpr, dpr);
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+    });
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   function getXY(e: React.PointerEvent<HTMLCanvasElement>) {
@@ -68,7 +73,7 @@ export function SignaturePad({ onConfirm, onCancel }: Props) {
   function handleClear() {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
     setIsEmpty(true);
   }
 

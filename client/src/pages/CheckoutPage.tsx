@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { Search, Trash2, Plus, Minus, Loader2, ScanLine, UserPlus } from 'lucide-react';
+import { Search, Trash2, Plus, Minus, Loader2, ScanLine, UserPlus, CheckCircle2 } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import { useProducts } from '../hooks/useProducts';
