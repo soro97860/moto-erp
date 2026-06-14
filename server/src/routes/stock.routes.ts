@@ -51,7 +51,7 @@ stockRouter.post('/movements', async (req, res) => {
         qtyBefore,
         qtyAfter,
         reason: body.reason,
-        operatorId: body.operatorId,
+        operatorId: req.user!.userId,
       },
       include: {
         product: { select: { id: true, name: true, sku: true } },

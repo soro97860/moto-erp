@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import {
-  TrendingUp, ShoppingBag, Users, DollarSign,
+  TrendingUp, ShoppingBag, DollarSign,
   Download, AlertTriangle, Loader2, RefreshCw,
 } from 'lucide-react';
 import {

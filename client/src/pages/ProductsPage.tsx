@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Plus, Upload, Pencil, Trash2, AlertTriangle, Loader2, X } from 'lucide-react';
+import { Plus, Upload, Pencil, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import {
   useProducts, useBrands, useCategories,
   useCreateProduct, useUpdateProduct, useDeleteProduct, useImportProducts,
@@ -7,7 +7,7 @@ import {
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Badge } from '../components/ui/badge';
+
 import { Select } from '../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
 import { useToast } from '../components/ui/toast';
