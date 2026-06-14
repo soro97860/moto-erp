@@ -55,9 +55,9 @@ export function CheckoutPage() {
     searchActive && searchQuery.length >= 1 ? { keyword: searchQuery, pageSize: 8 } : {},
   );
 
-  const { data: customers } = useCustomerByPlate(plateQuery);
+  const { data: customers, isError: plateNotFound } = useCustomerByPlate(plateQuery);
   const customer = manualCustomer ?? customers?.[0];
-  const notFound = !noPlate && plateQuery.length >= 3 && customers !== undefined && customers.length === 0 && !manualCustomer;
+  const notFound = !noPlate && plateQuery.length >= 3 && plateNotFound && !manualCustomer;
 
   const createCustomer = useCreateCustomer();
 
