@@ -5,7 +5,8 @@ import type { ShopSettings } from '../stores/settingsStore';
 interface Props {
   order: Receipt;
   settings: ShopSettings;
-  signature?: string; // data URL from SignaturePad
+  signature?: string;
+  onSignatureClick?: () => void;
 }
 
 // ── Style helpers ────────────────────────────────────────────────────────────
@@ -34,7 +35,7 @@ function fmt(n: number) {
 
 // ── Component ────────────────────────────────────────────────────────────────
 export const WorkOrderDocument = forwardRef<HTMLDivElement, Props>(
-  ({ order, settings, signature }, ref) => {
+  ({ order, settings, signature, onSignatureClick }, ref) => {
     const info = [
       settings.address && `地址：${settings.address}`,
       settings.phone && `電話：${settings.phone}`,
@@ -282,6 +283,24 @@ export const WorkOrderDocument = forwardRef<HTMLDivElement, Props>(
                     src={signature}
                     style={{ display: 'block', height: 64, maxWidth: '100%', objectFit: 'contain', objectPosition: 'left bottom' }}
                   />
+                ) : onSignatureClick ? (
+                  <div
+                    onClick={onSignatureClick}
+                    style={{
+                      height: 64,
+                      border: '2px dashed #9ca3af',
+                      borderRadius: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: '#9ca3af',
+                      fontSize: 12,
+                      userSelect: 'none',
+                    }}
+                  >
+                    ✍ 點擊此處簽名
+                  </div>
                 ) : (
                   <div style={{ height: 64, borderBottom: '1px solid #374151' }} />
                 )}

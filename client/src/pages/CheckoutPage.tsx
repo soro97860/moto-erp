@@ -1,22 +1,18 @@
 import { useState, useRef, useCallback } from 'react';
-import { Search, Trash2, Plus, Minus, Printer, CheckCircle2, Loader2, ScanLine, FileDown, UserPlus, PenLine } from 'lucide-react';
+import { Search, Trash2, Plus, Minus, Loader2, ScanLine, UserPlus } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import { useProducts } from '../hooks/useProducts';
 import { useCustomerByPlate, useCreateCustomer } from '../hooks/useCustomers';
 import { useCheckoutStore } from '../stores/checkoutStore';
-import { useCreateOrder, useOrderReceipt } from '../hooks/useOrders';
+import { useCreateOrder } from '../hooks/useOrders';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { useToast } from '../components/ui/toast';
 import { PlateScanner } from '../components/PlateScanner';
-import { WorkOrderDocument } from '../components/WorkOrderDocument';
-import { SignaturePad } from '../components/SignaturePad';
-import { useSettingsStore } from '../stores/settingsStore';
-import { useWorkOrderPDF } from '../hooks/useWorkOrderPDF';
-import { cn, formatCurrency, formatDate } from '../lib/utils';
+import { WorkOrderViewer } from '../components/WorkOrderViewer';
+import { cn, formatCurrency } from '../lib/utils';
 
 export function CheckoutPage() {
   const { user } = useAuthStore();
@@ -44,16 +40,9 @@ export function CheckoutPage() {
   // Service description
   const [description, setDescription] = useState('');
 
-  // Receipt
+  // Receipt / work order viewer
   const [completedOrderId, setCompletedOrderId] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
-  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
-  const [showSignaturePad, setShowSignaturePad] = useState(false);
-
-  // PDF
-  const { settings } = useSettingsStore();
-  const { generate, isGenerating } = useWorkOrderPDF();
-  const pdfRef = useRef<HTMLDivElement>(null);
 
   const { data: searchResults, isFetching: searching } = useProducts(
     searchActive && searchQuery.length >= 1 ? { keyword: searchQuery, pageSize: 8 } : {},
@@ -67,7 +56,6 @@ export function CheckoutPage() {
   const createCustomer = useCreateCustomer();
 
   const createOrder = useCreateOrder();
-  const { data: receipt } = useOrderReceipt(completedOrderId);
 
   const handleProductSelect = useCallback(
     (p: NonNullable<typeof searchResults>['items'][0]) => {
@@ -164,7 +152,6 @@ export function CheckoutPage() {
       setDescription('');
       setNoPlate(false);
       resetPlate();
-      setSignatureDataUrl(null);
       toast('結帳成功！', 'success');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -482,130 +469,12 @@ export function CheckoutPage() {
         </div>
       </div>
 
-      {/* ── Receipt modal ─────────────────────────────────── */}
-      <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-500" /> 結帳成功
-            </DialogTitle>
-          </DialogHeader>
-          {receipt && (
-            <div id="receipt-print" className="space-y-4">
-              <div className="text-center border-b pb-3">
-                <h3 className="font-bold text-lg">機車行 ERP</h3>
-                <p className="text-sm text-gray-500">工單 {receipt.orderNo}</p>
-                <p className="text-xs text-gray-400">{receipt.issuedAt}</p>
-              </div>
-              <div className="text-sm space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">車主</span>
-                  <span>{receipt.customer.name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">電話</span>
-                  <span>{receipt.customer.phone}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">車牌</span>
-                  <span className="font-mono">{receipt.customer.licensePlate}</span>
-                </div>
-              </div>
-              {receipt.serviceDescription && (
-                <div className="text-xs bg-gray-50 rounded p-2 text-gray-600">
-                  維修說明：{receipt.serviceDescription}
-                </div>
-              )}
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-1">品名</th>
-                    <th className="text-center py-1">數量</th>
-                    <th className="text-right py-1">小計</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {receipt.items.map((item, i) => (
-                    <tr key={i} className="border-b border-dashed">
-                      <td className="py-1 text-gray-700">{item.name}</td>
-                      <td className="py-1 text-center">{item.qty} {item.unit}</td>
-                      <td className="py-1 text-right">{formatCurrency(item.subtotal)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="text-sm space-y-1 border-t pt-2">
-                <div className="flex justify-between text-gray-500">
-                  <span>工資</span><span>{formatCurrency(receipt.laborFee)}</span>
-                </div>
-                {receipt.discount > 0 && (
-                  <div className="flex justify-between text-red-500">
-                    <span>折扣</span><span>-{formatCurrency(receipt.discount)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-bold text-base border-t pt-1">
-                  <span>總計</span>
-                  <span className="text-primary-600">{formatCurrency(receipt.total)}</span>
-                </div>
-              </div>
-                      {/* Signature preview */}
-              {signatureDataUrl && (
-                <div className="border rounded-lg p-3 bg-gray-50">
-                  <p className="text-xs text-gray-500 mb-1">客戶簽名</p>
-                  <img src={signatureDataUrl} alt="簽名" className="h-16 object-contain object-left" />
-                </div>
-              )}
-              <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" className="flex-1" onClick={() => window.print()}>
-                  <Printer className="h-4 w-4" /> 列印
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setShowSignaturePad(true)}
-                >
-                  <PenLine className="h-4 w-4" /> {signatureDataUrl ? '重新簽名' : '電子簽名'}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  disabled={isGenerating}
-                  onClick={() => {
-                    if (pdfRef.current) generate(pdfRef.current, `工單_${receipt!.orderNo}.pdf`);
-                  }}
-                >
-                  {isGenerating ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" /> 產生中…</>
-                  ) : (
-                    <><FileDown className="h-4 w-4" /> 下載 PDF</>
-                  )}
-                </Button>
-                <Button className="flex-1" onClick={() => setShowReceipt(false)}>
-                  關閉
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Hidden A4 template for PDF generation */}
-      {receipt && (
-        <div
-          style={{ position: 'fixed', left: '-9999px', top: 0, pointerEvents: 'none', zIndex: -1 }}
-          aria-hidden
-        >
-          <WorkOrderDocument ref={pdfRef} order={receipt} settings={settings} signature={signatureDataUrl ?? undefined} />
-        </div>
-      )}
-
-      {/* Electronic signature pad */}
-      {showSignaturePad && (
-        <SignaturePad
-          onConfirm={(url) => { setSignatureDataUrl(url); setShowSignaturePad(false); }}
-          onCancel={() => setShowSignaturePad(false)}
-        />
-      )}
+      {/* ── Work order viewer (receipt + signature + PDF) ── */}
+      <WorkOrderViewer
+        orderId={completedOrderId}
+        open={showReceipt}
+        onClose={() => setShowReceipt(false)}
+      />
 
       {/* ── License plate scanner ─────────────────────────── */}
       {scannerOpen && (

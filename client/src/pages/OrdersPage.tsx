@@ -1,14 +1,12 @@
-import { useState, useRef, useEffect } from 'react';
-import { useOrders, useOrderReceipt } from '../hooks/useOrders';
+import { useState } from 'react';
+import { useOrders } from '../hooks/useOrders';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
-import { Loader2, FileDown } from 'lucide-react';
-import { WorkOrderDocument } from '../components/WorkOrderDocument';
-import { useWorkOrderPDF } from '../hooks/useWorkOrderPDF';
-import { useSettingsStore } from '../stores/settingsStore';
-import { formatCurrency, formatDate, cn } from '../lib/utils';
+import { WorkOrderViewer } from '../components/WorkOrderViewer';
+import { Loader2, Eye } from 'lucide-react';
+import { formatCurrency, formatDate } from '../lib/utils';
 import dayjs from 'dayjs';
 
 const statusMap: Record<string, { label: string; variant: 'warning' | 'info' | 'success' | 'destructive' }> = {
@@ -23,38 +21,11 @@ export function OrdersPage() {
   const [to, setTo] = useState(dayjs().format('YYYY-MM-DD'));
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
-
-  // PDF
-  const [printingId, setPrintingId] = useState<string | null>(null);
-  const pdfRef = useRef<HTMLDivElement>(null);
-  const { settings } = useSettingsStore();
-  const { generate, isGenerating } = useWorkOrderPDF();
+  const [viewingId, setViewingId] = useState('');
 
   const { data, isLoading } = useOrders({
     from, to, ...(status && { status }), page: String(page), pageSize: '20',
   });
-
-  // Fetch receipt only when a print is requested
-  const { data: printReceipt } = useOrderReceipt(printingId ?? '');
-
-  // Auto-generate PDF once receipt data arrives
-  useEffect(() => {
-    if (!printReceipt || !printingId) return;
-
-    // Double RAF ensures the hidden DOM element has been painted
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (pdfRef.current) {
-          generate(pdfRef.current, `工單_${printReceipt.orderNo}.pdf`)
-            .then(() => setPrintingId(null))
-            .catch(() => setPrintingId(null));
-        } else {
-          setPrintingId(null);
-        }
-      });
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [printReceipt?.orderNo]);
 
   return (
     <div className="space-y-4">
@@ -75,7 +46,7 @@ export function OrdersPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
-                {['工單號', '日期', '車主', '車牌', '操作員', '零件', '工資', '折扣', '總計', '狀態', 'PDF'].map((h) => (
+                {['工單號', '日期', '車主', '車牌', '操作員', '零件', '工資', '折扣', '總計', '狀態', ''].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -86,13 +57,12 @@ export function OrdersPage() {
               )}
               {data?.items.map((o) => {
                 const s = statusMap[o.status] ?? { label: o.status, variant: 'outline' as const };
-                const isPrinting = printingId === o.id;
                 return (
                   <tr key={o.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 font-mono text-xs text-gray-500">{o.orderNo}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{formatDate(o.createdAt, 'MM-DD HH:mm')}</td>
-                    <td className="px-4 py-3">{o.customer.name}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{o.customer.licensePlate}</td>
+                    <td className="px-4 py-3">{o.customer?.name ?? '—'}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{o.customer?.licensePlate ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-500">{o.operator.name}</td>
                     <td className="px-4 py-3">{formatCurrency(o.subtotal)}</td>
                     <td className="px-4 py-3">{formatCurrency(o.laborFee)}</td>
@@ -108,15 +78,10 @@ export function OrdersPage() {
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0 text-gray-400 hover:text-primary-600"
-                        disabled={isGenerating || isPrinting}
-                        title="下載工單 PDF"
-                        onClick={() => setPrintingId(o.id)}
+                        title="預覽工單"
+                        onClick={() => setViewingId(o.id)}
                       >
-                        {isPrinting && isGenerating ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <FileDown className={cn('h-3.5 w-3.5', isPrinting && 'animate-pulse')} />
-                        )}
+                        <Eye className="h-3.5 w-3.5" />
                       </Button>
                     </td>
                   </tr>
@@ -137,15 +102,11 @@ export function OrdersPage() {
         )}
       </div>
 
-      {/* Hidden A4 template — rendered when a print is requested */}
-      {printReceipt && (
-        <div
-          style={{ position: 'absolute', left: '-9999px', top: 0, overflow: 'hidden' }}
-          aria-hidden
-        >
-          <WorkOrderDocument ref={pdfRef} order={printReceipt} settings={settings} />
-        </div>
-      )}
+      <WorkOrderViewer
+        orderId={viewingId}
+        open={!!viewingId}
+        onClose={() => setViewingId('')}
+      />
     </div>
   );
 }
