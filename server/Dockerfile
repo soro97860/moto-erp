@@ -18,6 +18,7 @@ COPY server/src ./server/src
 
 # Generate Prisma client and compile TypeScript
 RUN node_modules/.bin/prisma generate --schema=server/prisma/schema.prisma
+RUN npm run build --workspace=shared
 RUN npm run build --workspace=server
 
 # ── Production image ─────────────────────────────────────────
@@ -37,8 +38,9 @@ COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
+COPY --from=builder /app/shared/dist ./shared/dist
 COPY --from=builder /app/server/dist ./server/dist
 COPY server/prisma ./server/prisma
 
 EXPOSE 4000
-CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy --schema=server/prisma/schema.prisma && node server/dist/server/src/index.js"]
+CMD ["sh", "-c", "node_modules/.bin/prisma db push --schema=server/prisma/schema.prisma --accept-data-loss && node server/dist/server/src/index.js"]
