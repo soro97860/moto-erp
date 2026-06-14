@@ -90,7 +90,7 @@ export function ProductsPage() {
       stockQty: Number(form.stockQty),
       minStockQty: Number(form.minStockQty),
       unit: form.unit,
-      note: form.note || null,
+      note: form.note || undefined,
     };
     try {
       if (editingId) {
