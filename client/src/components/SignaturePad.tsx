@@ -18,24 +18,26 @@ export function SignaturePad({ onConfirm, onCancel }: Props) {
   const dims = useRef({ w: 520, h: 260 });
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
-    // parentElement.clientWidth is available synchronously in useEffect
-    const cssW = canvas.parentElement?.clientWidth ?? 520;
-    const cssH = 260;
-    dims.current = { w: cssW, h: cssH };
-    canvas.width = Math.round(cssW * dpr);
-    canvas.height = Math.round(cssH * dpr);
-    canvas.style.width = `${cssW}px`;
-    canvas.style.height = `${cssH}px`;
-    ctx.scale(dpr, dpr);
-    ctx.strokeStyle = '#111827';
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    function init() {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      // offsetWidth reflects the CSS w-full layout; retry via rAF if not yet laid out
+      const cssW = canvas.offsetWidth;
+      const cssH = canvas.offsetHeight;
+      if (!cssW || !cssH) { requestAnimationFrame(init); return; }
+      const dpr = window.devicePixelRatio || 1;
+      dims.current = { w: cssW, h: cssH };
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.scale(dpr, dpr);
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+    }
+    init();
   }, []);
 
   function getXY(e: React.PointerEvent<HTMLCanvasElement>) {
