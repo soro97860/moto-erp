@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { Search, Trash2, Plus, Minus, Printer, CheckCircle2, Loader2, ScanLine, FileDown, UserPlus } from 'lucide-react';
+import { Search, Trash2, Plus, Minus, Printer, CheckCircle2, Loader2, ScanLine, FileDown, UserPlus, PenLine } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import { useProducts } from '../hooks/useProducts';
@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/
 import { useToast } from '../components/ui/toast';
 import { PlateScanner } from '../components/PlateScanner';
 import { WorkOrderDocument } from '../components/WorkOrderDocument';
+import { SignaturePad } from '../components/SignaturePad';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useWorkOrderPDF } from '../hooks/useWorkOrderPDF';
 import { cn, formatCurrency, formatDate } from '../lib/utils';
@@ -46,6 +47,8 @@ export function CheckoutPage() {
   // Receipt
   const [completedOrderId, setCompletedOrderId] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const [showSignaturePad, setShowSignaturePad] = useState(false);
 
   // PDF
   const { settings } = useSettingsStore();
@@ -161,6 +164,7 @@ export function CheckoutPage() {
       setDescription('');
       setNoPlate(false);
       resetPlate();
+      setSignatureDataUrl(null);
       toast('結帳成功！', 'success');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -544,9 +548,23 @@ export function CheckoutPage() {
                   <span className="text-primary-600">{formatCurrency(receipt.total)}</span>
                 </div>
               </div>
+                      {/* Signature preview */}
+              {signatureDataUrl && (
+                <div className="border rounded-lg p-3 bg-gray-50">
+                  <p className="text-xs text-gray-500 mb-1">客戶簽名</p>
+                  <img src={signatureDataUrl} alt="簽名" className="h-16 object-contain object-left" />
+                </div>
+              )}
               <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" className="flex-1" onClick={() => window.print()}>
                   <Printer className="h-4 w-4" /> 列印
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowSignaturePad(true)}
+                >
+                  <PenLine className="h-4 w-4" /> {signatureDataUrl ? '重新簽名' : '電子簽名'}
                 </Button>
                 <Button
                   variant="outline"
@@ -574,11 +592,19 @@ export function CheckoutPage() {
       {/* Hidden A4 template for PDF generation */}
       {receipt && (
         <div
-          style={{ position: 'absolute', left: '-9999px', top: 0, overflow: 'hidden' }}
+          style={{ position: 'fixed', left: '-9999px', top: 0, pointerEvents: 'none', zIndex: -1 }}
           aria-hidden
         >
-          <WorkOrderDocument ref={pdfRef} order={receipt} settings={settings} />
+          <WorkOrderDocument ref={pdfRef} order={receipt} settings={settings} signature={signatureDataUrl ?? undefined} />
         </div>
+      )}
+
+      {/* Electronic signature pad */}
+      {showSignaturePad && (
+        <SignaturePad
+          onConfirm={(url) => { setSignatureDataUrl(url); setShowSignaturePad(false); }}
+          onCancel={() => setShowSignaturePad(false)}
+        />
       )}
 
       {/* ── License plate scanner ─────────────────────────── */}

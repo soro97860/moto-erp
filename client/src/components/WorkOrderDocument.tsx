@@ -5,6 +5,7 @@ import type { ShopSettings } from '../stores/settingsStore';
 interface Props {
   order: Receipt;
   settings: ShopSettings;
+  signature?: string; // data URL from SignaturePad
 }
 
 // ── Style helpers ────────────────────────────────────────────────────────────
@@ -33,7 +34,7 @@ function fmt(n: number) {
 
 // ── Component ────────────────────────────────────────────────────────────────
 export const WorkOrderDocument = forwardRef<HTMLDivElement, Props>(
-  ({ order, settings }, ref) => {
+  ({ order, settings, signature }, ref) => {
     const info = [
       settings.address && `地址：${settings.address}`,
       settings.phone && `電話：${settings.phone}`,
@@ -275,8 +276,15 @@ export const WorkOrderDocument = forwardRef<HTMLDivElement, Props>(
             </p>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 8 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 20 }}>客戶簽名</div>
-                <div style={{ borderBottom: '1px solid #374151', height: 1 }} />
+                <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4 }}>客戶簽名</div>
+                {signature ? (
+                  <img
+                    src={signature}
+                    style={{ display: 'block', height: 64, maxWidth: '100%', objectFit: 'contain', objectPosition: 'left bottom' }}
+                  />
+                ) : (
+                  <div style={{ height: 64, borderBottom: '1px solid #374151' }} />
+                )}
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 20 }}>
