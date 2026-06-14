@@ -1,9 +1,9 @@
 import { useState, useRef, useCallback } from 'react';
-import { Search, Trash2, Plus, Minus, Printer, CheckCircle2, Loader2, ScanLine, FileDown } from 'lucide-react';
+import { Search, Trash2, Plus, Minus, Printer, CheckCircle2, Loader2, ScanLine, FileDown, UserPlus } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import { useProducts } from '../hooks/useProducts';
-import { useCustomerByPlate } from '../hooks/useCustomers';
+import { useCustomerByPlate, useCreateCustomer, type Customer } from '../hooks/useCustomers';
 import { useCreateOrder, useOrderReceipt } from '../hooks/useOrders';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -30,6 +30,11 @@ export function CheckoutPage() {
   const [plateInput, setPlateInput] = useState('');
   const [plateQuery, setPlateQuery] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
+  // Customer created inline (bypasses plate query timing)
+  const [manualCustomer, setManualCustomer] = useState<Customer | null>(null);
+  // Quick-add form
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [qf, setQf] = useState({ name: '', phone: '', vehicleModel: '', vehicleColor: '' });
 
   // No-plate toggle (employee opts out of plate requirement)
   const [noPlate, setNoPlate] = useState(false);
@@ -51,7 +56,10 @@ export function CheckoutPage() {
   );
 
   const { data: customers } = useCustomerByPlate(plateQuery);
-  const customer = customers?.[0];
+  const customer = manualCustomer ?? customers?.[0];
+  const notFound = !noPlate && plateQuery.length >= 3 && customers !== undefined && customers.length === 0 && !manualCustomer;
+
+  const createCustomer = useCreateCustomer();
 
   const createOrder = useCreateOrder();
   const { data: receipt } = useOrderReceipt(completedOrderId);
@@ -85,8 +93,34 @@ export function CheckoutPage() {
   };
 
   const handlePlateSearch = () => {
+    setManualCustomer(null);
+    setShowQuickAdd(false);
+    setQf({ name: '', phone: '', vehicleModel: '', vehicleColor: '' });
     setPlateQuery(plateInput.toUpperCase().replace(/\s/g, ''));
   };
+
+  async function handleQuickAdd() {
+    if (!qf.name.trim() || !qf.phone.trim()) {
+      toast('姓名和電話為必填', 'error');
+      return;
+    }
+    try {
+      const created = await createCustomer.mutateAsync({
+        name: qf.name.trim(),
+        phone: qf.phone.trim(),
+        licensePlate: plateQuery,
+        vehicleModel: qf.vehicleModel.trim() || undefined,
+        vehicleColor: qf.vehicleColor.trim() || undefined,
+      });
+      setManualCustomer(created);
+      setShowQuickAdd(false);
+      setQf({ name: '', phone: '', vehicleModel: '', vehicleColor: '' });
+      toast(`已新增車主：${created.name}`, 'success');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast(msg ?? '新增失敗', 'error');
+    }
+  }
 
   async function handleCheckout() {
     if (cart.items.length === 0) {
@@ -124,6 +158,9 @@ export function CheckoutPage() {
       cart.clear();
       setDescription('');
       setNoPlate(false);
+      setManualCustomer(null);
+      setPlateQuery('');
+      setPlateInput('');
       toast('結帳成功！', 'success');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -281,7 +318,7 @@ export function CheckoutPage() {
           <div className={cn('flex gap-2', noPlate && 'opacity-40 pointer-events-none')}>
             <Input
               value={plateInput}
-              onChange={(e) => setPlateInput(e.target.value.toUpperCase())}
+              onChange={(e) => { setPlateInput(e.target.value.toUpperCase()); setManualCustomer(null); }}
               onKeyDown={(e) => e.key === 'Enter' && handlePlateSearch()}
               placeholder="輸入車牌號碼"
               className="font-mono text-sm uppercase"
@@ -311,8 +348,60 @@ export function CheckoutPage() {
               <p className="text-gray-600">{customer.phone}</p>
               <p className="text-gray-500">{customer.vehicleModel ?? ''} {customer.vehicleColor ?? ''}</p>
             </div>
-          ) : plateQuery ? (
-            <p className="text-xs text-gray-400">找不到車牌 {plateQuery} 的車主記錄</p>
+          ) : notFound ? (
+            <div className="space-y-2">
+              <p className="text-xs text-amber-600 font-medium">找不到車牌 {plateQuery} 的車主記錄</p>
+              {!showQuickAdd ? (
+                <button
+                  onClick={() => setShowQuickAdd(true)}
+                  className="w-full flex items-center justify-center gap-1.5 text-xs text-blue-600 border border-blue-200 rounded-lg py-2 hover:bg-blue-50 transition-colors"
+                >
+                  <UserPlus className="h-3.5 w-3.5" /> 新增車主
+                </button>
+              ) : (
+                <div className="border border-blue-200 rounded-lg p-3 bg-blue-50/40 space-y-2">
+                  <p className="text-xs font-semibold text-blue-700">新增車主 · {plateQuery}</p>
+                  <Input
+                    value={qf.name}
+                    onChange={(e) => setQf((p) => ({ ...p, name: e.target.value }))}
+                    placeholder="姓名 *"
+                    className="h-8 text-xs"
+                    autoFocus
+                  />
+                  <Input
+                    value={qf.phone}
+                    onChange={(e) => setQf((p) => ({ ...p, phone: e.target.value }))}
+                    placeholder="電話 *"
+                    className="h-8 text-xs"
+                  />
+                  <Input
+                    value={qf.vehicleModel}
+                    onChange={(e) => setQf((p) => ({ ...p, vehicleModel: e.target.value }))}
+                    placeholder="車型（選填，例：RCS 125）"
+                    className="h-8 text-xs"
+                  />
+                  <Input
+                    value={qf.vehicleColor}
+                    onChange={(e) => setQf((p) => ({ ...p, vehicleColor: e.target.value }))}
+                    placeholder="車色（選填，例：紅色）"
+                    className="h-8 text-xs"
+                  />
+                  <div className="flex gap-1.5 pt-0.5">
+                    <Button size="sm" variant="outline" className="flex-1 h-8 text-xs"
+                      onClick={() => { setShowQuickAdd(false); setQf({ name: '', phone: '', vehicleModel: '', vehicleColor: '' }); }}>
+                      取消
+                    </Button>
+                    <Button size="sm" className="flex-1 h-8 text-xs"
+                      onClick={handleQuickAdd}
+                      disabled={createCustomer.isPending}>
+                      {createCustomer.isPending
+                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                        : '儲存新增'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           ) : null}
         </div>
 
