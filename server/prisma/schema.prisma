@@ -1,0 +1,304 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  MECHANIC
+  CASHIER
+}
+
+enum MovementType {
+  IN          // 入庫
+  OUT         // 出庫
+  ADJUSTMENT  // 庫存調整
+}
+
+enum OrderStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// ─────────────────────────────────────────────────────────────
+// User（系統使用者 / 員工）
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique @db.VarChar(50)
+  passwordHash String   @db.VarChar(255)
+  name         String   @db.VarChar(100)
+  role         Role     @default(MECHANIC)
+  phone        String?  @db.VarChar(30)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  ordersAsOperator   Order[]          @relation("OrderOperator")
+  serviceRecords     ServiceRecord[]  @relation("ServiceTechnician")
+  stockMovements     StockMovement[]  @relation("MovementOperator")
+
+  @@index([username])
+  @@index([role])
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Brand（廠牌：YAMAHA、HONDA …）
+// ─────────────────────────────────────────────────────────────
+
+model Brand {
+  id        String    @id @default(uuid())
+  name      String    @unique @db.VarChar(100)
+  note      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  products  Product[]
+
+  @@index([name])
+  @@map("brands")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Category（零件分類，支援單層父子）
+// ─────────────────────────────────────────────────────────────
+
+model Category {
+  id        String     @id @default(uuid())
+  name      String     @db.VarChar(100)
+  parentId  String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // Self-relation
+  parent    Category?  @relation("CategoryParent", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryParent")
+
+  // Relations
+  products  Product[]
+
+  @@unique([name, parentId])
+  @@index([parentId])
+  @@map("categories")
+}
+
+// ─────────────────────────────────────────────────────────────
+// StorageLocation（儲位：樓層、櫃位、層次）
+// ─────────────────────────────────────────────────────────────
+
+model StorageLocation {
+  id        String    @id @default(uuid())
+  floor     String    @db.VarChar(20)
+  cabinet   String    @db.VarChar(20)
+  shelf     String    @db.VarChar(20)
+  note      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  products  Product[]
+
+  @@unique([floor, cabinet, shelf])
+  @@map("storage_locations")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Product（商品 / 零件）
+// ─────────────────────────────────────────────────────────────
+
+model Product {
+  id                String           @id @default(uuid())
+  sku               String           @unique @db.VarChar(100)
+  barcode           String?          @unique @db.VarChar(100)
+  name              String           @db.VarChar(200)
+  brandId           String?
+  categoryId        String?
+  storageLocationId String?
+  sellPrice         Decimal          @db.Decimal(10, 2)
+  costPrice         Decimal          @db.Decimal(10, 2)
+  stockQty          Int              @default(0)
+  minStockQty       Int              @default(0)
+  unit              String           @default("個") @db.VarChar(20)
+  note              String?
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  // Relations
+  brand             Brand?           @relation(fields: [brandId], references: [id])
+  category          Category?        @relation(fields: [categoryId], references: [id])
+  storageLocation   StorageLocation? @relation(fields: [storageLocationId], references: [id])
+  orderItems        OrderItem[]
+  stockMovements    StockMovement[]
+
+  @@index([name])
+  @@index([barcode])
+  @@index([brandId])
+  @@index([categoryId])
+  @@index([stockQty])
+  @@map("products")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Customer（車主）
+// ─────────────────────────────────────────────────────────────
+
+model Customer {
+  id           String          @id @default(uuid())
+  name         String          @db.VarChar(100)
+  phone        String          @db.VarChar(30)
+  licensePlate String          @db.VarChar(20)
+  vehicleColor String?         @db.VarChar(50)
+  vehicleModel String?         @db.VarChar(100)
+  note         String?
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  // Relations
+  serviceRecords ServiceRecord[]
+  orders         Order[]
+
+  @@index([phone])
+  @@index([licensePlate])
+  @@index([name])
+  @@map("customers")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ServiceRecord（維修紀錄）
+// ─────────────────────────────────────────────────────────────
+
+model ServiceRecord {
+  id           String    @id @default(uuid())
+  customerId   String
+  licensePlate String    @db.VarChar(20)
+  serviceDate  DateTime
+  mileage      Int?
+  description  String
+  diagnosis    String?
+  technicianId String?
+  note         String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  customer     Customer  @relation(fields: [customerId], references: [id])
+  technician   User?     @relation("ServiceTechnician", fields: [technicianId], references: [id])
+  orders       Order[]
+
+  @@index([customerId])
+  @@index([licensePlate])
+  @@index([serviceDate])
+  @@index([technicianId])
+  @@map("service_records")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Order（工單 / 結帳單）
+// ─────────────────────────────────────────────────────────────
+
+model Order {
+  id              String      @id @default(uuid())
+  orderNo         String      @unique @db.VarChar(30)
+  customerId      String
+  serviceRecordId String?
+  operatorId      String
+  status          OrderStatus @default(PENDING)
+  laborFee        Decimal     @default(0) @db.Decimal(10, 2)
+  subtotal        Decimal     @default(0) @db.Decimal(10, 2)
+  discount        Decimal     @default(0) @db.Decimal(10, 2)
+  total           Decimal     @default(0) @db.Decimal(10, 2)
+  note            String?
+  completedAt     DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relations
+  customer        Customer        @relation(fields: [customerId], references: [id])
+  serviceRecord   ServiceRecord?  @relation(fields: [serviceRecordId], references: [id])
+  operator        User            @relation("OrderOperator", fields: [operatorId], references: [id])
+  items           OrderItem[]
+
+  @@index([orderNo])
+  @@index([customerId])
+  @@index([operatorId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+// ─────────────────────────────────────────────────────────────
+// OrderItem（工單明細）
+// ─────────────────────────────────────────────────────────────
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  productId String
+  qty       Int
+  unitPrice Decimal @db.Decimal(10, 2)
+  discount  Decimal @default(0) @db.Decimal(10, 2)
+  subtotal  Decimal @db.Decimal(10, 2)
+
+  // Relations
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Settings（系統設定 key-value 表）
+// ─────────────────────────────────────────────────────────────
+
+model Settings {
+  key       String   @id @db.VarChar(100)
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+// ─────────────────────────────────────────────────────────────
+// StockMovement（庫存異動紀錄）
+// ─────────────────────────────────────────────────────────────
+
+model StockMovement {
+  id           String       @id @default(uuid())
+  productId    String
+  type         MovementType
+  qty          Int
+  qtyBefore    Int
+  qtyAfter     Int
+  reason       String?
+  orderId      String?
+  operatorId   String
+  createdAt    DateTime     @default(now())
+
+  // Relations
+  product      Product      @relation(fields: [productId], references: [id])
+  operator     User         @relation("MovementOperator", fields: [operatorId], references: [id])
+
+  @@index([productId])
+  @@index([type])
+  @@index([operatorId])
+  @@index([createdAt])
+  @@map("stock_movements")
+}

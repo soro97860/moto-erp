@@ -1,0 +1,18 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.tgz
+
+# Prisma
+server/prisma/migrations/
+!server/prisma/migrations/.gitkeep
+
+# Docker volumes
+postgres_data/

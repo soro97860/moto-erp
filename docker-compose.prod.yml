@@ -1,0 +1,135 @@
+version: '3.9'
+
+# Production deployment with Let's Encrypt SSL via Certbot.
+# Prerequisites:
+#   1. Copy .env.example → .env and fill in all values (especially DOMAIN, JWT_SECRET, POSTGRES_PASSWORD)
+#   2. Run initial certificate issuance:  docker compose -f docker-compose.prod.yml run --rm certbot-init
+#   3. Start full stack:                  docker compose -f docker-compose.prod.yml up -d
+#
+# Renewal is handled automatically by the certbot service (cron every 12h inside container).
+
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: moto-erp-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-moto_erp}
+      POSTGRES_USER: ${POSTGRES_USER:-moto_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # No port exposure in prod — only accessible within moto-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-moto_user} -d ${POSTGRES_DB:-moto_erp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - moto-net
+
+  # ── Backend (Express) ───────────────────────────────────────
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: moto-erp-server
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      SERVER_PORT: ${SERVER_PORT:-4000}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-moto_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-moto_erp}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-12}
+      CLIENT_ORIGIN: https://${DOMAIN:?DOMAIN is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:${SERVER_PORT:-4000}/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - moto-net
+
+  # ── Frontend (React/Vite static build) ─────────────────────
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
+    container_name: moto-erp-client
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - moto-net
+
+  # ── Nginx (HTTPS reverse proxy) ─────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: moto-erp-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx-prod.conf:/etc/nginx/nginx.conf:ro
+      - certbot_www:/var/www/certbot:ro
+      - certbot_conf:/etc/letsencrypt:ro
+    depends_on:
+      server:
+        condition: service_healthy
+      client:
+        condition: service_healthy
+    networks:
+      - moto-net
+
+  # ── Certbot (Let's Encrypt certificate manager) ─────────────
+  certbot:
+    image: certbot/certbot:latest
+    container_name: moto-erp-certbot
+    restart: unless-stopped
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    # Renew every 12 hours; certbot only acts if cert expires within 30 days
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
+
+  # ── One-shot: initial certificate issuance ──────────────────
+  # Run manually once before starting the full stack:
+  #   docker compose -f docker-compose.prod.yml run --rm certbot-init
+  certbot-init:
+    image: certbot/certbot:latest
+    container_name: moto-erp-certbot-init
+    profiles: ["init"]
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    command: >
+      certonly
+      --webroot
+      --webroot-path=/var/www/certbot
+      --email ${CERTBOT_EMAIL:?CERTBOT_EMAIL is required}
+      --agree-tos
+      --no-eff-email
+      -d ${DOMAIN}
+
+volumes:
+  postgres_data:
+  certbot_www:
+  certbot_conf:
+
+networks:
+  moto-net:
+    driver: bridge
