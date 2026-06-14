@@ -37,6 +37,9 @@ orderRouter.get('/', async (req, res) => {
   }
   if (filter.status) where.status = filter.status;
   if (filter.customerId) where.customerId = filter.customerId;
+  if (filter.licensePlate) {
+    where.customer = { licensePlate: { contains: filter.licensePlate, mode: 'insensitive' } };
+  }
 
   const [items, total] = await Promise.all([
     prisma.order.findMany({
