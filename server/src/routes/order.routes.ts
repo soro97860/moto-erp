@@ -82,13 +82,15 @@ orderRouter.get('/:id/receipt', async (req, res) => {
     orderNo: order.orderNo,
     issuedAt: dayjs(order.completedAt ?? order.createdAt).format('YYYY-MM-DD HH:mm'),
     status: order.status,
-    customer: {
-      name: order.customer.name,
-      phone: order.customer.phone,
-      licensePlate: order.customer.licensePlate,
-      vehicleModel: order.customer.vehicleModel,
-      vehicleColor: order.customer.vehicleColor,
-    },
+    customer: order.customer
+      ? {
+          name: order.customer.name,
+          phone: order.customer.phone,
+          licensePlate: order.customer.licensePlate,
+          vehicleModel: order.customer.vehicleModel,
+          vehicleColor: order.customer.vehicleColor,
+        }
+      : { name: '一般購買', phone: '—', licensePlate: '—', vehicleModel: null, vehicleColor: null },
     operator: order.operator.name,
     items: order.items.map((item) => ({
       sku: item.product.sku,
@@ -139,7 +141,7 @@ orderRouter.post('/', async (req, res) => {
     // 1. Optionally create ServiceRecord inline
     let serviceRecordId = body.serviceRecordId ?? null;
 
-    if (body.service && !serviceRecordId) {
+    if (body.service && !serviceRecordId && body.customerId) {
       const sr = await tx.serviceRecord.create({
         data: {
           customerId: body.customerId,

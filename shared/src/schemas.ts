@@ -109,7 +109,7 @@ const inlineServiceSchema = z.object({
 });
 
 export const createOrderSchema = z.object({
-  customerId: z.string().uuid(),
+  customerId: z.string().uuid().optional().nullable(),
   // Pass an existing serviceRecordId OR let the server create one via `service`
   serviceRecordId: z.string().uuid().optional().nullable(),
   service: inlineServiceSchema.optional(),

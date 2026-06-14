@@ -31,6 +31,9 @@ export function CheckoutPage() {
   const [plateQuery, setPlateQuery] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
 
+  // No-plate toggle (employee opts out of plate requirement)
+  const [noPlate, setNoPlate] = useState(false);
+
   // Service description
   const [description, setDescription] = useState('');
 
@@ -90,18 +93,18 @@ export function CheckoutPage() {
       toast('購物車是空的', 'error');
       return;
     }
-    if (!customer) {
+    if (!noPlate && !customer) {
       toast('請先查詢車主', 'error');
       return;
     }
 
     try {
       const order = await createOrder.mutateAsync({
-        customerId: customer.id,
+        customerId: noPlate ? undefined : customer!.id,
         laborFee: cart.laborFee,
         discount: cart.discount,
         note: description || undefined,
-        service: description
+        service: !noPlate && customer && description
           ? {
               licensePlate: customer.licensePlate,
               description,
@@ -120,6 +123,7 @@ export function CheckoutPage() {
       setShowReceipt(true);
       cart.clear();
       setDescription('');
+      setNoPlate(false);
       toast('結帳成功！', 'success');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -252,8 +256,29 @@ export function CheckoutPage() {
       <div className="lg:w-72 xl:w-80 space-y-4">
         {/* License plate lookup */}
         <div className="bg-white rounded-xl border p-4 space-y-3">
-          <h3 className="font-semibold text-sm">車主查詢</h3>
-          <div className="flex gap-2">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-sm">車主查詢</h3>
+            <button
+              onClick={() => setNoPlate(!noPlate)}
+              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700"
+            >
+              <span
+                className={cn(
+                  'relative inline-flex h-4 w-7 shrink-0 rounded-full border-2 border-transparent transition-colors',
+                  noPlate ? 'bg-orange-400' : 'bg-gray-200',
+                )}
+              >
+                <span
+                  className={cn(
+                    'pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition-transform',
+                    noPlate ? 'translate-x-3' : 'translate-x-0',
+                  )}
+                />
+              </span>
+              無需車牌
+            </button>
+          </div>
+          <div className={cn('flex gap-2', noPlate && 'opacity-40 pointer-events-none')}>
             <Input
               value={plateInput}
               onChange={(e) => setPlateInput(e.target.value.toUpperCase())}
@@ -273,7 +298,11 @@ export function CheckoutPage() {
             </Button>
             <Button size="sm" onClick={handlePlateSearch}>查詢</Button>
           </div>
-          {customer ? (
+          {noPlate ? (
+            <div className="rounded-lg bg-orange-50 border border-orange-200 p-3 text-sm text-orange-700 font-medium">
+              一般購買，不記錄車牌
+            </div>
+          ) : customer ? (
             <div className="rounded-lg bg-green-50 border border-green-200 p-3 space-y-1 text-sm">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-green-600" />
@@ -325,14 +354,14 @@ export function CheckoutPage() {
             className="w-full"
             size="lg"
             onClick={handleCheckout}
-            disabled={createOrder.isPending || cart.items.length === 0 || !customer}
+            disabled={createOrder.isPending || cart.items.length === 0 || (!noPlate && !customer)}
           >
             {createOrder.isPending ? (
               <><Loader2 className="h-4 w-4 animate-spin" /> 結帳中…</>
             ) : '確認結帳'}
           </Button>
 
-          {!customer && (
+          {!noPlate && !customer && (
             <p className="text-xs text-center text-gray-400">請先查詢車主後才能結帳</p>
           )}
         </div>
