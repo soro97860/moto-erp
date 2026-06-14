@@ -22,6 +22,7 @@ RUN npm run build --workspace=server
 
 # ── Production image ─────────────────────────────────────────
 FROM node:20-alpine
+RUN apk add --no-cache openssl
 WORKDIR /app
 
 COPY package.json package-lock.json ./
