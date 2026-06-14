@@ -46,9 +46,6 @@ function SectionLoader() {
   );
 }
 
-function ErrorMsg({ msg }: { msg: string }) {
-  return <p className="text-sm text-red-500 mt-1">{msg}</p>;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tab 1: 店家資訊

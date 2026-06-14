@@ -19,7 +19,7 @@ export function WarehousePage() {
   const [qty, setQty] = useState(1);
   const [locationId, setLocationId] = useState('');
   const [reason, setReason] = useState('');
-  const [lastStocked, setLastStocked] = useState<string | null>(null);
+  const [, setLastStocked] = useState<string | null>(null);
 
   const barcodeRef = useRef<HTMLInputElement>(null);
 

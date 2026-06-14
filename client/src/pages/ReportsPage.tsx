@@ -13,7 +13,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { useToast } from '../components/ui/toast';
-import { formatCurrency, formatDate, cn } from '../lib/utils';
+import { formatCurrency, cn } from '../lib/utils';
 import dayjs from 'dayjs';
 
 // ── Stat card ─────────────────────────────────────────────────
