@@ -6,6 +6,7 @@ export interface Customer {
   name: string;
   phone: string;
   licensePlate: string;
+  engineNumber: string | null;
   vehicleModel: string | null;
   vehicleColor: string | null;
   note: string | null;

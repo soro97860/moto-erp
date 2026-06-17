@@ -163,6 +163,7 @@ model Customer {
   name         String          @db.VarChar(100)
   phone        String          @db.VarChar(30)
   licensePlate String          @db.VarChar(20)
+  engineNumber String?         @db.VarChar(50)
   vehicleColor String?         @db.VarChar(50)
   vehicleModel String?         @db.VarChar(100)
   note         String?

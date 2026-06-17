@@ -74,6 +74,7 @@ export const customerSchema = z.object({
   name: z.string().min(1).max(100),
   phone: z.string().min(1).max(30),
   licensePlate: z.string().min(1).max(20),
+  engineNumber: z.string().max(50).optional(),
   vehicleColor: z.string().max(50).optional(),
   vehicleModel: z.string().max(100).optional(),
   note: z.string().optional(),
